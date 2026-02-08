@@ -12,7 +12,7 @@ BINARY := path
 
 # Paths
 TAP_REPO := $(HOME)/Developer/tools/ansilithic/homebrew-tap
-FORMULA := $(TAP_REPO)/Formula/pathfinder.rb
+FORMULA := $(TAP_REPO)/Formula/path.rb
 SOURCE := Sources/path/Path.swift
 
 .DEFAULT_GOAL := help
@@ -89,13 +89,13 @@ release:
 	echo "$(CYAN)4/5$(RESET) Creating GitHub release..."; \
 	gh release create "v$(V)" --title "v$(V)" --generate-notes; \
 	echo "$(CYAN)5/5$(RESET) Updating Homebrew tap..."; \
-	SHA=$$(curl -sL "https://github.com/ansilithic/pathfinder/archive/refs/tags/v$(V).tar.gz" | shasum -a 256 | cut -d' ' -f1); \
+	SHA=$$(curl -sL "https://github.com/ansilithic/path/archive/refs/tags/v$(V).tar.gz" | shasum -a 256 | cut -d' ' -f1); \
 	sed -i '' 's|archive/refs/tags/v.*\.tar\.gz|archive/refs/tags/v$(V).tar.gz|' $(FORMULA); \
 	sed -i '' 's/sha256 ".*"/sha256 "'$$SHA'"/' $(FORMULA); \
-	cd $(TAP_REPO) && git add Formula/pathfinder.rb && git commit -m "Update pathfinder to $(V)" && git push origin main; \
+	cd $(TAP_REPO) && git add Formula/path.rb && git commit -m "Update path to $(V)" && git push origin main; \
 	echo ""; \
 	echo "$(GREEN)Released $(BINARY) v$(V)!$(RESET)"; \
-	echo "  brew update && brew upgrade pathfinder"
+	echo "  brew update && brew upgrade path"
 
 # ============================================================
 # Test
