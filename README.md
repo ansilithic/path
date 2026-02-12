@@ -5,13 +5,6 @@ Display PATH entries with their source files, executable counts, and ownership a
 ## Install
 
 ```sh
-brew tap ansilithic/tap
-brew install pathfinder
-```
-
-Or build from source:
-
-```sh
 make build && make install
 ```
 
