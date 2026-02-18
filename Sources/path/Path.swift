@@ -6,24 +6,36 @@ import Foundation
 struct PathCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "path",
-        abstract: "Display PATH entries with sources and analysis.",
-        discussion: """
-        Shows each directory in your PATH with bin counts, ownership, \
-        and where it was configured.
-
-        Examples:
-          path                    Show PATH summary table
-          path --list             List all executables in each directory
-          path --list --top 10    Show first 10 executables per directory
-          path --dir /usr/local/bin  List executables in a specific directory
-          path --shadows          Find shadowed executables across PATH
-          path --dupes            Show duplicate PATH entries
-        """,
+        abstract: "Inspect PATH entries, sources, and executables.",
         version: "2.0.0"
     )
 
-    @Flag(name: [.customShort("d"), .long], help: "Show only duplicate entries")
-    var dupes = false
+    static func main() async {
+        let args = Array(CommandLine.arguments.dropFirst())
+        let wantsHelp = args.contains("-h") || args.contains("--help")
+        let wantsVersion = args.contains("--version")
+
+        if wantsHelp {
+            Help.print()
+            return
+        }
+
+        if wantsVersion {
+            print(configuration.version)
+            return
+        }
+
+        do {
+            var command = try parseAsRoot()
+            if var async = command as? AsyncParsableCommand {
+                try await async.run()
+            } else {
+                try command.run()
+            }
+        } catch {
+            exit(withError: error)
+        }
+    }
 
     @Flag(name: [.customShort("l"), .long], help: "List executables in each directory")
     var list = false
@@ -33,9 +45,6 @@ struct PathCommand: AsyncParsableCommand {
 
     @Option(name: [.long], help: "Filter to a specific directory")
     var dir: String?
-
-    @Option(name: [.long], help: "Show only the first N executables per directory")
-    var top: Int?
 
     mutating func run() async {
         if shadows { list = true }
@@ -181,8 +190,7 @@ struct PathCommand: AsyncParsableCommand {
             ))
         }
 
-        // Filter if --dupes
-        var displayEntries = dupes ? entries.filter(\.isDuplicate) : entries
+        var displayEntries = entries
 
         // Filter if --dir
         if let dirFilter = dir {
@@ -193,20 +201,27 @@ struct PathCommand: AsyncParsableCommand {
         var seenNames: [String: String] = [:]
 
         if list {
-            // --list mode: show executables per directory
-            print()
-            print("\(styled("PATH", .bold, .cyan)) \(styled("\(pathEntries.count) entries", .dim))")
+            // --list mode: unified executable table
 
+            struct ExecRow {
+                let dirPath: String
+                let name: String
+                let type: FileType
+                let lang: String
+                let detail: String
+                let isShadowed: Bool
+            }
+
+            var allRows: [ExecRow] = []
+            var missingEntries: [Entry] = []
             var totalExecs = 0
             var scriptCount = 0
             var binaryCount = 0
-            var containerCount = 0
             var shadowedCount = 0
 
             for entry in displayEntries {
                 guard entry.exists else {
-                    print()
-                    print("\(styled(shortPath(entry.path, home: home), .bold, .red))  \(styled("missing", .red))  \(styled("(\(entry.source))", .gray))")
+                    missingEntries.append(entry)
                     continue
                 }
 
@@ -260,163 +275,133 @@ struct PathCommand: AsyncParsableCommand {
                     return collected.sorted { $0.0.localizedCaseInsensitiveCompare($1.0) == .orderedAscending }
                 }
 
-                var rows: [(name: String, type: FileType, lang: String, detail: String)] = []
                 for (name, classification, symlinkDetail) in results {
                     var detail = symlinkDetail
+                    var isShadowed = false
                     if let firstDir = seenNames[name] {
                         let shortened = shortPath(firstDir, home: home)
                         detail = "shadowed by \(shortened)"
+                        isShadowed = true
                     } else {
                         seenNames[name] = entry.path
                     }
-                    rows.append((name, classification.type, classification.lang, detail))
-                }
 
-                // Track stats
-                totalExecs += rows.count
-                for row in rows {
-                    switch row.type {
+                    allRows.append(ExecRow(
+                        dirPath: entry.path,
+                        name: name,
+                        type: classification.type,
+                        lang: classification.lang,
+                        detail: detail,
+                        isShadowed: isShadowed
+                    ))
+
+                    totalExecs += 1
+                    switch classification.type {
                     case .script: scriptCount += 1
                     case .binary: binaryCount += 1
-                    case .container: containerCount += 1
                     }
-                    if row.detail.hasPrefix("shadowed by") {
-                        shadowedCount += 1
-                    }
-                }
-
-                if shadows {
-                    let shadowed = rows.filter { $0.detail.hasPrefix("shadowed by") }
-                    if !shadowed.isEmpty {
-                        printBinsTable(dir: entry.path, rows: shadowed, home: home, top: top)
-                    }
-                } else {
-                    printBinsTable(dir: entry.path, rows: rows, home: home, top: top)
+                    if isShadowed { shadowedCount += 1 }
                 }
             }
 
-            if shadows && seenNames.isEmpty {
+            var displayRows = allRows
+
+            // Apply --shadows filter
+            if shadows {
+                displayRows = displayRows.filter(\.isShadowed)
+            }
+
+            if displayRows.isEmpty && shadows {
                 print("\nNo shadowed executables found.")
+            } else if !displayRows.isEmpty {
+                let table = TrafficLightTable(segments: [
+                    .indicators([
+                        Indicator("binary", color: .red),
+                        Indicator("script", color: .cyan),
+                        Indicator("shadowed", color: .orange),
+                    ]),
+                    .column(TextColumn("Executable", sizing: .auto())),
+                    .column(TextColumn("Lang", sizing: .auto())),
+                    .column(TextColumn("", sizing: .flexible(minWidth: 0))),
+                ])
+
+                var tableRows: [TrafficLightRow] = []
+                for row in displayRows {
+                    let dir = shortPath(row.dirPath, home: home)
+                    let merged = styled(dir + "/", .darkGray) + row.name
+
+                    let detail: String
+                    if row.detail.isEmpty {
+                        detail = ""
+                    } else if row.isShadowed {
+                        detail = styled(row.detail, .orange)
+                    } else {
+                        detail = styled(row.detail, .gray)
+                    }
+
+                    tableRows.append(TrafficLightRow(
+                        indicators: [[
+                            row.type == .binary ? .on : .off,
+                            row.type == .script ? .on : .off,
+                            row.isShadowed ? .on : .off,
+                        ]],
+                        values: [
+                            merged,
+                            colorForLang(row.lang, text: row.lang),
+                            detail,
+                        ]
+                    ))
+                }
+
+                let counts: [[Int]] = [[binaryCount, scriptCount, shadowedCount]]
+                print(table.render(rows: tableRows, counts: counts), terminator: "")
             }
 
-            // Summary footer
-            print()
-            var parts: [String] = []
-            parts.append("\(styled("\(totalExecs)", .yellow)) \(styled("executables", .dim))")
-            parts.append("\(styled("\(scriptCount)", .cyan)) \(styled("scripts", .dim))")
-            parts.append("\(styled("\(binaryCount)", .red)) \(styled("binaries", .dim))")
-            if containerCount > 0 {
-                parts.append("\(styled("\(containerCount)", .yellow)) \(styled("containers", .dim))")
+            // Ghost directories
+            for entry in missingEntries {
+                print("\(styled("●", .red))  \(styled(shortPath(entry.path, home: home), .bold, .red))  \(styled("ghost", .red))  \(styled("(\(entry.source))", .gray))")
             }
-            if shadowedCount > 0 {
-                parts.append("\(styled("\(shadowedCount)", .orange)) \(styled("shadowed", .dim))")
-            }
-            print(parts.joined(separator: styled("  \u{00B7}  ", .dim)))
         } else {
             // Default mode: directory summary table
+            let table = TrafficLightTable(segments: [
+                .indicators([
+                    Indicator("ghost (nonexistent directory)", color: .red),
+                    Indicator("writable", color: .blue),
+                ]),
+                .column(TextColumn("Directory", sizing: .auto())),
+                .column(TextColumn("Executables", sizing: .fixed(12))),
+                .column(TextColumn("Source", sizing: .flexible(minWidth: 10))),
+            ])
 
-            // Header
-            print()
-            print("\(styled("PATH", .bold, .cyan)) \(styled("\(pathEntries.count) entries", .dim))")
-            print()
-
-            // Dynamic column widths
-            let pathW = max("Directory".count, displayEntries.map(\.path.count).max() ?? 0)
-            let binsW = max("Bins".count, displayEntries.map { String($0.binCount).count }.max() ?? 0)
-            let ownerW = max("Owner".count, displayEntries.map(\.owner.count).max() ?? 0)
-            let writableW = "Writable".count
-
-            // Table header
-            let hPath = "Directory".padding(toLength: pathW, withPad: " ", startingAt: 0)
-            let hBins = "Bins".padding(toLength: binsW, withPad: " ", startingAt: 0)
-            let hOwner = "Owner".padding(toLength: ownerW, withPad: " ", startingAt: 0)
-            let hWritable = "Writable"
-            print(styled("  #  \(hPath)  \(hBins)  \(hOwner)  \(hWritable)  Source", .lightGray))
-
-            // Entries
+            var rows: [TrafficLightRow] = []
             for entry in displayEntries {
-                let pathColor: Color
-                if !entry.exists {
-                    pathColor = .red
-                } else if entry.path.contains("/homebrew/") || entry.path.contains("/Homebrew/") {
-                    pathColor = .cyan
-                } else if entry.owner != "root" {
-                    pathColor = .magenta
-                } else {
-                    pathColor = .green
-                }
-
-                let idxColor: Color = entry.isDuplicate ? .orange : .gray
-                let ownerColor: Color = entry.owner == "root" ? .green : .magenta
-                let writableStr = entry.writable ? "yes" : "-"
-                let writableColor: Color = entry.writable ? .yellow : .dim
-
-                let paddedPath = entry.path.padding(toLength: pathW, withPad: " ", startingAt: 0)
-                let binStr = String(entry.binCount).padding(toLength: binsW, withPad: " ", startingAt: 0)
-                let ownerStr = entry.owner.padding(toLength: ownerW, withPad: " ", startingAt: 0)
-                let wStr = writableStr.padding(toLength: writableW, withPad: " ", startingAt: 0)
-
-                print(" \(styled(String(format: "%2d", entry.index), idxColor))  \(styled(paddedPath, pathColor))  \(styled(binStr, .yellow))  \(styled(ownerStr, ownerColor))  \(styled(wStr, writableColor))  \(styled(entry.source, .gray))")
+                rows.append(TrafficLightRow(
+                    indicators: [[
+                        entry.exists ? .off : .on,
+                        entry.writable ? .on : .off,
+                    ]],
+                    values: [
+                        entry.exists
+                            ? "\(Self.neonGreen)\(shortPath(entry.path, home: home))\(Color.reset.rawValue)"
+                            : styled(shortPath(entry.path, home: home), .red, .dim),
+                        entry.exists ? styled(String(entry.binCount), .yellow) : styled("\u{2014}", .dim),
+                        styled(entry.source, .gray),
+                    ]
+                ))
             }
 
-            // Summary
-            let totalBins = entries.reduce(0) { $0 + $1.binCount }
-            let totalDups = entries.filter(\.isDuplicate).count
+            let counts: [[Int]] = [[
+                entries.filter { !$0.exists }.count,
+                entries.filter(\.writable).count,
+            ]]
 
-            print()
-            var summary = "\(styled("\(totalBins)", .yellow)) \(styled("executables", .dim))"
-            if totalDups > 0 {
-                summary += "\(styled(",", .dim)) \(styled("\(totalDups)", .orange)) \(styled("duplicates", .dim))"
-            }
-            print(summary)
-            print(styled("Run path --help for more options.", .dim))
+            print(table.render(rows: rows, counts: counts), terminator: "")
         }
 
         print()
     }
 
-    private func printBinsTable(
-        dir: String,
-        rows: [(name: String, type: FileType, lang: String, detail: String)],
-        home: String,
-        top: Int? = nil
-    ) {
-        let nameW = 24
-        let typeW = 12
-        let langW = 10
-        let tableW = 50
-
-        let shortDir = shortPath(dir, home: home)
-
-        print()
-        print("\(styled(shortDir, .bold, .blue))  \(styled("\(rows.count)", .dim))")
-        print(styled("\u{2500}".repeating(tableW), .dim))
-        print("  \(styled("Name".padded(to: nameW), .lightGray))\(styled("Type".padded(to: typeW), .lightGray))\(styled("Lang", .lightGray))")
-
-        let displayRows = top.map { Array(rows.prefix($0)) } ?? rows
-
-        for row in displayRows {
-            let typeColored = colorForType(row.type, text: row.type.rawValue).padded(to: typeW)
-            let langColored = colorForLang(row.lang, text: row.lang).padded(to: langW)
-
-            var line = "  \(row.name.padded(to: nameW))\(typeColored)\(langColored)"
-
-            if !row.detail.isEmpty {
-                if row.detail.hasPrefix("shadowed by") {
-                    line += styled(row.detail, .orange)
-                } else {
-                    line += styled(row.detail, .gray)
-                }
-            }
-
-            print(line)
-        }
-
-        if let top, rows.count > top {
-            let remaining = rows.count - top
-            print(styled("  ... and \(remaining) more", .dim))
-        }
-    }
+    private static let neonGreen = "\u{1B}[38;2;47;255;18m"
 
     private func shortPath(_ path: String, home: String) -> String {
         path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
@@ -436,14 +421,6 @@ struct PathCommand: AsyncParsableCommand {
         return result
     }
 
-    private func colorForType(_ type: FileType, text: String) -> String {
-        switch type {
-        case .script:    return styled(text, .cyan)
-        case .container: return styled(text, .yellow)
-        case .binary:    return styled(text, .red)
-        }
-    }
-
     private func colorForLang(_ lang: String, text: String) -> String {
         switch lang {
         case "shell", "bash", "zsh": return styled(text, .yellow)
@@ -456,10 +433,6 @@ struct PathCommand: AsyncParsableCommand {
         case "perl":    return styled(text, .yellow)
         case "c":       return styled(text, .gray)
         case "objc":    return styled(text, .gray)
-        case "kali":    return styled(text, .blue)
-        case "debian":  return styled(text, .yellow)
-        case "alpine":  return styled(text, .cyan)
-        case "ubuntu":  return styled(text, .orange)
         default:        return styled(text, .gray)
         }
     }
