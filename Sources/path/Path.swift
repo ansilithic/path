@@ -382,8 +382,8 @@ struct PathCommand: AsyncParsableCommand {
                     ]],
                     values: [
                         entry.exists
-                            ? "\(Self.neonGreen)\(shortPath(entry.path, home: home))\(Color.reset.rawValue)"
-                            : styled(shortPath(entry.path, home: home), .red, .dim),
+                            ? "\(Self.neonGreen)\(entry.path)\(Color.reset.rawValue)"
+                            : styled(entry.path, .red, .dim),
                         entry.exists ? styled(String(entry.binCount), .yellow) : styled("\u{2014}", .dim),
                         styled(entry.source, .gray),
                     ]
