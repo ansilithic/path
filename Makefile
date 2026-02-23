@@ -7,7 +7,7 @@ BOLD := \033[1m
 RESET := \033[0m
 
 # Config
-BIN_DIR := $(HOME)/.local/bin
+BIN_DIR := /usr/local/bin
 BINARY := path
 
 .DEFAULT_GOAL := help
@@ -87,9 +87,9 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Targets:$(RESET)"
 	@echo "  $(CYAN)build$(RESET)     $(GRAY)-$(RESET) $(GREEN)Build the release binary$(RESET)"
-	@echo "  $(CYAN)install$(RESET)   $(GRAY)-$(RESET) $(GREEN)Copy binary to ~/.local/bin$(RESET)"
+	@echo "  $(CYAN)install$(RESET)   $(GRAY)-$(RESET) $(GREEN)Copy binary to /usr/local/bin$(RESET)"
 	@echo "  $(CYAN)rebuild$(RESET)   $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
-	@echo "  $(CYAN)uninstall$(RESET) $(GRAY)-$(RESET) $(GREEN)Remove binary from ~/.local/bin$(RESET)"
+	@echo "  $(CYAN)uninstall$(RESET) $(GRAY)-$(RESET) $(GREEN)Remove binary from /usr/local/bin$(RESET)"
 	@echo "  $(CYAN)health$(RESET)    $(GRAY)-$(RESET) $(GREEN)Check if binary is installed$(RESET)"
 	@echo "  $(CYAN)test$(RESET)      $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)clean$(RESET)     $(GRAY)-$(RESET) $(GREEN)Remove build artifacts$(RESET)"

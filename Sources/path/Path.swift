@@ -81,8 +81,8 @@ struct PathCommand: AsyncParsableCommand {
         let rcFiles = [
             "\(home)/.zshenv", "\(home)/.zshrc", "\(home)/.zprofile",
             "\(home)/.bashrc", "\(home)/.bash_profile", "\(home)/.profile",
-            "\(home)/.config/zsh/.zshenv", "\(home)/.config/zsh/.zshrc",
-            "\(home)/.config/zsh/.zprofile",
+            "\(home)/Library/Application Support/zsh/.zshenv", "\(home)/Library/Application Support/zsh/.zshrc",
+            "\(home)/Library/Application Support/zsh/.zprofile",
             "/etc/zshenv", "/etc/zshrc", "/etc/zprofile", "/etc/profile",
         ]
 
@@ -411,10 +411,10 @@ struct PathCommand: AsyncParsableCommand {
         var result = path
         result = result.replacingOccurrences(of: "$HOME", with: home)
         result = result.replacingOccurrences(of: "${HOME}", with: home)
-        result = result.replacingOccurrences(of: "$XDG_BIN_HOME", with: "\(home)/.local/bin")
-        result = result.replacingOccurrences(of: "${XDG_BIN_HOME}", with: "\(home)/.local/bin")
-        result = result.replacingOccurrences(of: "$XDG_DATA_HOME", with: "\(home)/.local/share")
-        result = result.replacingOccurrences(of: "${XDG_DATA_HOME}", with: "\(home)/.local/share")
+        result = result.replacingOccurrences(of: "$XDG_CONFIG_HOME", with: "\(home)/Library/Application Support")
+        result = result.replacingOccurrences(of: "${XDG_CONFIG_HOME}", with: "\(home)/Library/Application Support")
+        result = result.replacingOccurrences(of: "$XDG_DATA_HOME", with: "\(home)/Library/Application Support")
+        result = result.replacingOccurrences(of: "${XDG_DATA_HOME}", with: "\(home)/Library/Application Support")
         if result.hasPrefix("~") {
             result = home + result.dropFirst()
         }
