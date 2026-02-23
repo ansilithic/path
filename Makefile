@@ -11,7 +11,7 @@ BIN_DIR := $(HOME)/.local/bin
 BINARY := path
 
 .DEFAULT_GOAL := help
-.PHONY: build install uninstall clean rebuild test help
+.PHONY: build install uninstall health clean rebuild test help
 
 # ============================================================
 # Build
@@ -48,6 +48,17 @@ uninstall:
 	fi
 
 # ============================================================
+# Health
+# ============================================================
+health:
+	@if [ -x $(BIN_DIR)/$(BINARY) ]; then \
+		echo "$(GREEN)$(BINARY) installed$(RESET)"; \
+	else \
+		echo "$(YELLOW)$(BINARY) not installed$(RESET)"; \
+		exit 1; \
+	fi
+
+# ============================================================
 # Rebuild (clean + build + install)
 # ============================================================
 rebuild: clean build install
@@ -79,6 +90,7 @@ help:
 	@echo "  $(CYAN)install$(RESET)   $(GRAY)-$(RESET) $(GREEN)Copy binary to ~/.local/bin$(RESET)"
 	@echo "  $(CYAN)rebuild$(RESET)   $(GRAY)-$(RESET) $(GREEN)Clean, build, and install$(RESET)"
 	@echo "  $(CYAN)uninstall$(RESET) $(GRAY)-$(RESET) $(GREEN)Remove binary from ~/.local/bin$(RESET)"
+	@echo "  $(CYAN)health$(RESET)    $(GRAY)-$(RESET) $(GREEN)Check if binary is installed$(RESET)"
 	@echo "  $(CYAN)test$(RESET)      $(GRAY)-$(RESET) $(GREEN)Run tests$(RESET)"
 	@echo "  $(CYAN)clean$(RESET)     $(GRAY)-$(RESET) $(GREEN)Remove build artifacts$(RESET)"
 	@echo "  $(CYAN)help$(RESET)      $(GRAY)-$(RESET) $(GREEN)Show this help message (default)$(RESET)"
