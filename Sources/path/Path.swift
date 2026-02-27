@@ -194,7 +194,7 @@ struct PathCommand: AsyncParsableCommand {
 
         // Filter if --dir
         if let dirFilter = dir {
-            displayEntries = displayEntries.filter { $0.path.hasSuffix(dirFilter) || $0.path == dirFilter }
+            displayEntries = displayEntries.filter { $0.path == dirFilter }
         }
 
         // Track shadowed names across all directories
@@ -357,9 +357,11 @@ struct PathCommand: AsyncParsableCommand {
                 print(table.render(rows: tableRows, counts: counts), terminator: "")
             }
 
-            // Ghost directories
-            for entry in missingEntries {
-                print("\(styled("●", .red))  \(styled(shortPath(entry.path, home: home), .bold, .red))  \(styled("ghost", .red))  \(styled("(\(entry.source))", .gray))")
+            // Ghost directories (skip when filtering to a specific dir)
+            if dir == nil {
+                for entry in missingEntries {
+                    print("\(styled("●", .red))  \(styled(shortPath(entry.path, home: home), .bold, .red))  \(styled("ghost", .red))  \(styled("(\(entry.source))", .gray))")
+                }
             }
         } else {
             // Default mode: directory summary table
