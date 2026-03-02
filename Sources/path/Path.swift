@@ -81,8 +81,8 @@ struct PathCommand: AsyncParsableCommand {
         let rcFiles = [
             "\(home)/.zshenv", "\(home)/.zshrc", "\(home)/.zprofile",
             "\(home)/.bashrc", "\(home)/.bash_profile", "\(home)/.profile",
-            "\(home)/Library/Application Support/zsh/.zshenv", "\(home)/Library/Application Support/zsh/.zshrc",
-            "\(home)/Library/Application Support/zsh/.zprofile",
+            "\(home)/Library/Application Support/com.apple.zsh/.zshenv", "\(home)/Library/Application Support/com.apple.zsh/.zshrc",
+            "\(home)/Library/Application Support/com.apple.zsh/.zprofile",
             "/etc/zshenv", "/etc/zshrc", "/etc/zprofile", "/etc/profile",
         ]
 
