@@ -18,11 +18,7 @@ Shadows mode finds executables with the same name across multiple PATH directori
 
 ## Install
 
-```sh
-brew install ansilithic/tap/path
-```
-
-Or build from source (requires Xcode and macOS 14+):
+Build from source (requires Xcode and macOS 14+):
 
 ```sh
 make build && make install
