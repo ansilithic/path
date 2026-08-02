@@ -35,7 +35,7 @@ enum Classifier {
 
         // Check first bytes for Mach-O magic (might fail to parse but still be binary)
         if let data = fm.contents(atPath: resolved)?.prefix(4), data.count == 4 {
-            let magic = data.withUnsafeBytes { $0.load(as: UInt32.self) }
+            let magic = data.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
             if magic == 0xFEEDFACF || magic == 0xCFFAEDFE ||
                magic == 0xCAFEBABE || magic == 0xBEBAFECA {
                 return Classification(type: .binary, lang: "")

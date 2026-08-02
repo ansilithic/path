@@ -132,26 +132,18 @@ struct PathCommand: AsyncParsableCommand {
             .split(separator: ":").map(String.init) ?? []
 
         struct Entry {
-            let index: Int
             let path: String
             let binCount: Int
             let exists: Bool
-            let isDuplicate: Bool
-            let owner: String
             let writable: Bool
             let source: String
         }
 
-        var seen = Set<String>()
         var entries: [Entry] = []
 
-        for (i, p) in pathEntries.enumerated() {
-            let isDup = seen.contains(p)
-            seen.insert(p)
-
+        for p in pathEntries {
             var exists = false
             var binCount = 0
-            var owner = ""
             var writable = false
 
             var isDir: ObjCBool = false
@@ -167,10 +159,6 @@ struct PathCommand: AsyncParsableCommand {
                         }
                     }
                 }
-                // Check ownership
-                if let attrs = try? fm.attributesOfItem(atPath: p) {
-                    owner = (attrs[.ownerAccountName] as? String) ?? ""
-                }
             }
 
             // Find source
@@ -178,12 +166,9 @@ struct PathCommand: AsyncParsableCommand {
             let sourceDisplay = source.replacingOccurrences(of: home, with: "~")
 
             entries.append(Entry(
-                index: i + 1,
                 path: p,
                 binCount: binCount,
                 exists: exists,
-                isDuplicate: isDup,
-                owner: owner,
                 writable: writable,
                 source: sourceDisplay
             ))
@@ -383,7 +368,7 @@ struct PathCommand: AsyncParsableCommand {
                     ]],
                     values: [
                         entry.exists
-                            ? "\(Self.neonGreen)\(entry.path)\(Color.reset.rawValue)"
+                            ? styled(entry.path, .custom(Self.neonGreen))
                             : styled(entry.path, .red, .dim),
                         entry.exists ? styled(String(entry.binCount), .yellow) : styled("\u{2014}", .dim),
                         styled(entry.source, .gray),

@@ -15,7 +15,7 @@ enum MachO {
         defer { handle.closeFile() }
 
         guard let magicData = readBytes(handle, count: 4, at: 0) else { return nil }
-        let magic = magicData.withUnsafeBytes { $0.load(as: UInt32.self) }
+        let magic = magicData.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
 
         switch magic {
         case MH_MAGIC_64:
@@ -33,19 +33,19 @@ enum MachO {
 
     private static func parseFat(_ handle: FileHandle, swap: Bool) -> String? {
         guard let countData = readBytes(handle, count: 4, at: 4) else { return nil }
-        var nArch = countData.withUnsafeBytes { $0.load(as: UInt32.self) }
+        var nArch = countData.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
         if swap { nArch = nArch.byteSwapped }
         guard nArch > 0 else { return nil }
 
         guard let archData = readBytes(handle, count: 12, at: 8) else { return nil }
         let offset = archData.withUnsafeBytes {
-            var val = $0.load(fromByteOffset: 8, as: UInt32.self)
+            var val = $0.loadUnaligned(fromByteOffset: 8, as: UInt32.self)
             if swap { val = val.byteSwapped }
             return UInt64(val)
         }
 
         guard let sliceMagic = readBytes(handle, count: 4, at: offset) else { return nil }
-        let magic = sliceMagic.withUnsafeBytes { $0.load(as: UInt32.self) }
+        let magic = sliceMagic.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
 
         switch magic {
         case MH_MAGIC_64:
@@ -60,7 +60,7 @@ enum MachO {
     private static func parseMachO64(_ handle: FileHandle, offset: UInt64, swap: Bool) -> String? {
         guard let headerData = readBytes(handle, count: 32, at: offset) else { return nil }
 
-        var ncmds = headerData.withUnsafeBytes { $0.load(fromByteOffset: 16, as: UInt32.self) }
+        var ncmds = headerData.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 16, as: UInt32.self) }
         if swap { ncmds = ncmds.byteSwapped }
 
         var cmdOffset = offset + 32
@@ -68,14 +68,14 @@ enum MachO {
 
         for _ in 0..<ncmds {
             guard let cmdHeader = readBytes(handle, count: 8, at: cmdOffset) else { break }
-            var cmd = cmdHeader.withUnsafeBytes { $0.load(fromByteOffset: 0, as: UInt32.self) }
-            var cmdSize = cmdHeader.withUnsafeBytes { $0.load(fromByteOffset: 4, as: UInt32.self) }
+            var cmd = cmdHeader.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 0, as: UInt32.self) }
+            var cmdSize = cmdHeader.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: UInt32.self) }
             if swap { cmd = cmd.byteSwapped; cmdSize = cmdSize.byteSwapped }
 
             if cmd == LC_SEGMENT_64 {
                 guard let segData = readBytes(handle, count: 72, at: cmdOffset) else { break }
 
-                var nsects = segData.withUnsafeBytes { $0.load(fromByteOffset: 64, as: UInt32.self) }
+                var nsects = segData.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 64, as: UInt32.self) }
                 if swap { nsects = nsects.byteSwapped }
 
                 var sectOffset = cmdOffset + 72
